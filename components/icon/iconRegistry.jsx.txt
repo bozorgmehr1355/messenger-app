@@ -1,0 +1,33 @@
+import {
+  LayoutDashboard,
+  Package,
+  Receipt,
+  CreditCard,
+  Bell,
+  MessageSquare,
+  Users,
+  Settings,
+  Search,
+  LogOut,
+  Paperclip,
+  Trash2,
+  Pencil,
+  MoreHorizontal,
+} from "lucide-react";
+
+export const Icons = {
+  dashboard: LayoutDashboard,
+  orders: Package,
+  invoices: Receipt,
+  payments: CreditCard,
+  notifications: Bell,
+  messages: MessageSquare,
+  users: Users,
+  settings: Settings,
+  search: Search,
+  logout: LogOut,
+  attach: Paperclip,
+  delete: Trash2,
+  edit: Pencil,
+  more: MoreHorizontal,
+};
