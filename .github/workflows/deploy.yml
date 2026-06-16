@@ -1,12 +1,9 @@
-name: Build and Deploy to GitHub Pages
+name: Deploy to GitHub Pages
 
 on:
   push:
     branches:
-      - main  # هر بار که روی شاخه main پوش کنید، این اکشن اجرا می‌شود
-
-permissions:
-  contents: write
+      - main # اگر نام برنچ اصلی شما master است، این مقدار را تغییر دهید
 
 jobs:
   build-and-deploy:
@@ -14,26 +11,32 @@ jobs:
 
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
-          node-version: '18' # یا نسخه متناسب با پروژه شما
+          node-version: '18'
 
-      - name: Install Build Tools
+      - name: Install Build Tools & Dependencies
         run: |
-          npm install -g browserify babelify @babel/core @babel/preset-react terser
+          npm install -g browserify terser babelify @babel/core @babel/preset-react
 
-      - name: Build Project
+      - name: Build JS Bundle
         run: |
-          # اجرای دستورات بیلد طبق مستندات پروژه
+          # اگر فایل اصلی پروژه شما نام دیگری مثل index.jsx دارد، آن را در خط زیر جایگزین app.jsx کنید
           browserify app.jsx -t [ babelify --presets [ @babel/preset-react ] ] -o bundle.js
-          terser bundle.js --compress --mangle -o bundle.min.js
           
-          # ایجاد یک پوشه برای خروجی نهایی
-          mkdir dist
-          cp index.html dashboard.html bundle.min.js dist/
+          # فشرده‌سازی کدها
+          terser bundle.js --compress --mangle -o bundle.min.js
+
+      - name: Deploy to gh-pages branch
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: .
+          publish_branch: gh-pages
+          # فایل‌های اضافی مثل سورس‌ها را می‌توانید با تنظیمات exclude حذف کنید تا فقط بیلد نهایی آپلود شود
           # اگر پوشه css یا فایل‌های دیگری دارید، آن‌ها را هم کپی کنید:
           # cp -r css dist/
 
