@@ -1,39 +1,25 @@
-name: Deploy to GitHub Pages
+name: Deploy Messenger App
 
 on:
   push:
     branches:
-      - main # اگر نام برنچ اصلی شما master است، این مقدار را تغییر دهید
+      - main
+
+permissions:
+  contents: write
 
 jobs:
-  build-and-deploy:
+  deploy:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18'
-
-      - name: Install Build Tools & Dependencies
-        run: |
-          npm install -g browserify terser babelify @babel/core @babel/preset-react
-
-      - name: Build JS Bundle
-        run: |
-          # اگر فایل اصلی پروژه شما نام دیگری مثل index.jsx دارد، آن را در خط زیر جایگزین app.jsx کنید
-          browserify app.jsx -t [ babelify --presets [ @babel/preset-react ] ] -o bundle.js
-          
-          # فشرده‌سازی کدها
-          terser bundle.js --compress --mangle -o bundle.min.js
-
-      - name: Deploy to gh-pages branch
+      - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: .
           publish_dir: .
           publish_branch: gh-pages
           # فایل‌های اضافی مثل سورس‌ها را می‌توانید با تنظیمات exclude حذف کنید تا فقط بیلد نهایی آپلود شود
