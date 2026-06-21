@@ -109,6 +109,7 @@ var UNAME={1:'بزرگمهر',2:'کریم‌لو',3:'سراج‌الدینی',4:
 var WF={
   pending_review:{who:'ardestani',label:'بررسی استعلام',next:'registered',checks:['استعلام قیمت کامل است','مشخصات فنی واضح است','سابقه مشتری بررسی شد']},
   registered:{who:'ardestani',label:'تأیید سفارش',next:'stock_check',checks:['موجودی انبار کافی است','قیمت با لیست مطابقت دارد','اعتبار مشتری کافی است','تاریخ تحویل امکان‌پذیر است','مشخصات سفارش کامل است']},
+  customer_approval:{who:'karimloo',label:'تأیید مشتری جدید',next:'stock_check',checks:['هویت مشتری احراز شد','اعتبارسنجی انجام شد','مشتری مجاز به خرید است']},
   stock_check:{who:'hosseini',label:'بررسی موجودی',next:'proforma_issued',checks:['کالاها در انبار موجود هستند','تعداد موجودی کافی است','کیفیت کالا تأیید شد']},
   proforma_issued:{who:'dolatkhah',label:'صدور پیش‌فاکتور',next:'payment_pending',checks:['پیش‌فاکتور صادر شد','قیمت نهایی درج شده','اطلاعات بانکی کامل است']},
   payment_pending:{who:'mohsenzadeh',label:'تأیید پرداخت',next:'dispatched',checks:['واریز مبلغ تأیید شد','رسید پرداخت دریافت شد']},
@@ -123,12 +124,9 @@ function myStages(){var un=myUN();return Object.keys(WF).filter(function(k){retu
 function fetchOrders(cb){
   var stages=myStages();
   if(!stages.length){cb([]);return;}
-  var filter='('+stages.map(function(s){return 'order_status.eq.'+s;}).join(',)+or+(')+')+';
-  // Use or filter
-  var params=stages.map(function(s){return 'order_status=eq.'+encodeURIComponent(s);}).join('&');
-  // Build proper Supabase OR query
   var orFilter=stages.map(function(s){return 'order_status.eq.'+s;}).join(',');
-  fetch(SUPA+'/rest/v1/crm_orders?select=*&or=('+orFilter+')&order=created_at.asc',{headers:H})
+  // join crm_customers to get customer_status for routing decisions
+  fetch(SUPA+'/rest/v1/crm_orders?select=*,crm_customers(customer_status)&or=('+orFilter+')&order=created_at.asc',{headers:H})
     .then(function(r){return r.json();})
     .then(function(d){cb(Array.isArray(d)?d:[]);})
     .catch(function(){cb([]);});
@@ -137,7 +135,16 @@ function fetchOrders(cb){
 function logAndAdvance(order,checklistState,action,reason,cb){
   var stage=order.order_status;
   var wf=WF[stage]||{};
-  var nextStage=action==='approved'?( wf.next||'done' ):'rejected';
+  var nextStage;
+  if(action!=='approved'){
+    nextStage='rejected';
+  } else if(stage==='registered'){
+    // مشتری جدید باید اول تأیید شود
+    var custStatus=(order.crm_customers&&order.crm_customers.customer_status)||'active';
+    nextStage=(custStatus==='new')?'customer_approval':'stock_check';
+  } else {
+    nextStage=wf.next||'done';
+  }
   var now=new Date().toISOString();
   var started=wbsStartTimes[order.id]||now;
   var durMin=Math.round((new Date(now)-new Date(started))/60000);
