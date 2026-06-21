@@ -252,8 +252,7 @@ function doAdvance(order,approved,reason,checkData){
 
 /* ====== STYLES ====== */
 var css=
-'#wbs-fab{position:fixed;bottom:90px;left:50%;transform:translateX(-50%);z-index:8999;height:40px;padding:0 18px;border-radius:20px;background:#f0a500;color:#000;border:none;font-size:13px;font-weight:700;cursor:pointer;box-shadow:0 4px 20px #0009;display:flex;align-items:center;gap:6px;white-space:nowrap;}'
-+'#wbs-fab:hover{filter:brightness(1.1);}'
+'#wbs-fab{display:none!important;}'
 +'#wbs-badge{position:absolute;top:-5px;right:-5px;min-width:18px;height:18px;border-radius:9px;background:#ef4444;color:#fff;font-size:10px;font-weight:700;display:none;align-items:center;justify-content:center;pointer-events:none;padding:0 3px;}'
 +'#wbs-ov{display:none;position:fixed;inset:0;background:#0a0a0a;z-index:9000;direction:rtl;flex-direction:column;font-family:inherit;}'
 +'#wbs-ov.on{display:flex;}'
@@ -356,7 +355,7 @@ ov.id='wbs-ov';
 ov.innerHTML=
   '<div id="wbs-hd">'
     +'<div id="wbs-hd-l">'
-      +'<div id="wbs-hd-title">مدیریت سفارش‌ها</div>'
+      +'<div id="wbs-hd-title">بررسی سفارشات</div>'
       +'<div id="wbs-hd-sub">نمایش WBS — <span id="wbs-uname" style="color:#f0a500"></span></div>'
     +'</div>'
     +'<div id="wbs-hd-r">'
@@ -648,11 +647,57 @@ function updateApproveBtn(id){
   if(btn) btn.disabled=!allDone;
 }
 
+/* ====== HOOK سفارشات TAB ====== */
+function hookOrdersTab(){
+  /* find nav elements that contain exactly 'سفارشات' */
+  var els=document.querySelectorAll('nav *,footer *,[class*="nav"] *,[class*="tab"] *,[class*="bottom"] *');
+  for(var i=0;i<els.length;i++){
+    var el=els[i];
+    if(el.textContent.trim()==='سفارشات'&&!el._wbsHooked){
+      var target=el.closest('button')||el.closest('a')||el.parentElement;
+      if(target&&!target._wbsHooked){
+        target._wbsHooked=true;
+        target.addEventListener('click',function(e){
+          var un=myUN();
+          if(!un) return;
+          /* open our overlay */
+          ov.classList.add('on');
+          document.getElementById('wbs-uname').textContent=myName();
+          load();
+        },true);
+      }
+    }
+  }
+}
+
+/* also hook via event delegation as fallback */
+document.addEventListener('click',function(e){
+  var el=e.target;
+  for(var i=0;i<5;i++){
+    if(!el||el===document.body) break;
+    if(el.textContent&&el.textContent.trim()==='سفارشات'){
+      var un=myUN();
+      if(!un){el=el.parentElement;continue;}
+      ov.classList.add('on');
+      document.getElementById('wbs-uname').textContent=myName();
+      load();
+      break;
+    }
+    el=el.parentElement;
+  }
+},true);
+
 /* ====== INIT ====== */
-setTimeout(function(){
+function tryHook(){
+  hookOrdersTab();
   var un=myUN(); if(!un) return;
   fetchAll(function(){updateBadge();});
-},1500);
+}
+setTimeout(tryHook,1000);
+setTimeout(tryHook,3000);
+var _hookObs=new MutationObserver(function(){hookOrdersTab();});
+_hookObs.observe(document.body,{childList:true,subtree:true});
+
 setInterval(function(){
   var un=myUN(); if(!un) return;
   fetchAll(function(){updateBadge(); if(!ov.classList.contains('on')) return; if(!detailId) renderList();});
