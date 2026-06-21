@@ -125,7 +125,6 @@ function fetchOrders(cb){
   var stages=myStages();
   if(!stages.length){cb([]);return;}
   var orFilter=stages.map(function(s){return 'order_status.eq.'+s;}).join(',');
-  // join crm_customers to get customer_status for routing decisions
   fetch(SUPA+'/rest/v1/crm_orders?select=*,crm_customers(customer_status)&or=('+orFilter+')&order=created_at.asc',{headers:H})
     .then(function(r){return r.json();})
     .then(function(d){cb(Array.isArray(d)?d:[]);})
@@ -139,7 +138,6 @@ function logAndAdvance(order,checklistState,action,reason,cb){
   if(action!=='approved'){
     nextStage='rejected';
   } else if(stage==='registered'){
-    // مشتری جدید باید اول تأیید شود
     var custStatus=(order.crm_customers&&order.crm_customers.customer_status)||'active';
     nextStage=(custStatus==='new')?'customer_approval':'stock_check';
   } else {
@@ -160,6 +158,42 @@ function logAndAdvance(order,checklistState,action,reason,cb){
     .then(function(){cb(true);}).catch(function(){cb(false);});
 }
 
+// ===== NOTIFICATIONS =====
+function fetchNotifs(cb){
+  var un=myUN();
+  if(!un){cb([]);return;}
+  fetch(SUPA+'/rest/v1/crm_notifications?recipient=eq.'+un+'&status=eq.unread&order=sent_at.desc&limit=30',{headers:H})
+    .then(function(r){return r.json();})
+    .then(function(d){cb(Array.isArray(d)?d:[]);})
+    .catch(function(){cb([]);});
+}
+
+function markNotifsRead(){
+  var un=myUN();
+  if(!un) return;
+  fetch(SUPA+'/rest/v1/crm_notifications?recipient=eq.'+un+'&status=eq.unread',{
+    method:'PATCH',headers:H,
+    body:JSON.stringify({status:'read'})
+  }).catch(function(){});
+}
+
+function updateBadge(){
+  fetchNotifs(function(notifs){
+    var badge=document.getElementById('wbs-badge');
+    if(!badge) return;
+    if(notifs.length>0){
+      badge.textContent=notifs.length>9?'9+':notifs.length;
+      badge.style.display='flex';
+      var tb=document.getElementById('wbs-ntab-badge');
+      if(tb){tb.textContent=notifs.length;tb.style.display='inline';}
+    } else {
+      badge.style.display='none';
+      var tb=document.getElementById('wbs-ntab-badge');
+      if(tb) tb.style.display='none';
+    }
+  });
+}
+
 function fetchPerf(cb){
   fetch(SUPA+'/rest/v1/quarterly_performance?select=*',{headers:H})
     .then(function(r){return r.json();})
@@ -167,7 +201,6 @@ function fetchPerf(cb){
     .catch(function(){cb([]);});
 }
 
-// Track when each order card was opened
 var wbsStartTimes={};
 var checkStates={};
 var ordersCache=[];
@@ -175,8 +208,9 @@ var perfCache=[];
 var curView='tasks';
 
 // === STYLES ===
-var css='#wbs-fab{position:fixed;bottom:80px;left:14px;width:46px;height:46px;border-radius:50%;background:#f0a500;color:#000;border:none;font-size:18px;cursor:pointer;z-index:8999;box-shadow:0 4px 14px #0008;display:flex;align-items:center;justify-content:center;transition:transform .15s;}'
+var css='#wbs-fab{position:fixed;bottom:80px;left:14px;width:46px;height:46px;border-radius:50%;background:#f0a500;color:#000;border:none;font-size:18px;cursor:pointer;z-index:8999;box-shadow:0 4px 14px #0008;display:flex;align-items:center;justify-content:center;transition:transform .15s;position:relative;}'
 +'#wbs-fab:hover{transform:scale(1.08);}'
++'#wbs-badge{position:absolute;top:-6px;right:-6px;width:18px;height:18px;border-radius:50%;background:#ef4444;color:#fff;font-size:10px;font-weight:700;display:none;align-items:center;justify-content:center;pointer-events:none;}'
 +'#wbs-ov{display:none;position:fixed;inset:0;background:#0d0d0d;z-index:9000;direction:rtl;flex-direction:column;font-family:inherit;}'
 +'#wbs-ov.on{display:flex;}'
 +'#wbs-hd{background:#141414;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #252525;flex-shrink:0;}'
@@ -227,21 +261,26 @@ document.head.appendChild(styleEl);
 var fab=document.createElement('button');
 fab.id='wbs-fab';
 fab.title='وظایف WBS';
-fab.innerHTML='&#128203;';
+fab.style.position='relative';
+fab.innerHTML='&#128203;<span id="wbs-badge"></span>';
 document.body.appendChild(fab);
 
 // Overlay
 var ov=document.createElement('div');
 ov.id='wbs-ov';
 ov.innerHTML='<div id="wbs-hd"><div id="wbs-hd-title">وظایف و ارزیابی &mdash; <span id="wbs-username" style="color:#f0a500;font-size:13px;"></span></div><button id="wbs-x">&times;</button></div>'
-+'<div id="wbs-tabs-bar"><div class="wtab on" data-v="tasks">&#128203; وظایف من</div><div class="wtab" data-v="perf">&#128202; ارزیابی فصلی</div></div>'
++'<div id="wbs-tabs-bar"><div class="wtab on" data-v="tasks">&#128203; وظایف من</div><div class="wtab" data-v="perf">&#128202; ارزیابی فصلی</div><div class="wtab" data-v="notifs">&#128276; اعلان‌ها <span id="wbs-ntab-badge" style="display:none;background:#ef4444;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;margin-right:4px"></span></div></div>'
 +'<div id="wbs-body"></div>';
 document.body.appendChild(ov);
+
+setTimeout(updateBadge, 1000);
+setInterval(updateBadge, 30000);
 
 fab.addEventListener('click',function(){
   ov.classList.add('on');
   document.getElementById('wbs-username').textContent=myName();
   renderView(curView);
+  updateBadge();
 });
 document.getElementById('wbs-x').addEventListener('click',function(){ov.classList.remove('on');});
 ov.querySelectorAll('.wtab').forEach(function(t){
@@ -255,6 +294,7 @@ ov.querySelectorAll('.wtab').forEach(function(t){
 
 function renderView(v){
   if(v==='tasks') renderTasks();
+  else if(v==='notifs') renderNotifs();
   else renderPerf();
 }
 
@@ -368,6 +408,32 @@ window.wReject=function(id){
     }
   });
 };
+
+// ===== NOTIFICATIONS TAB =====
+function renderNotifs(){
+  var body=document.getElementById('wbs-body');
+  body.innerHTML='<div class="wloading">در حال بارگذاری...</div>';
+  fetchNotifs(function(notifs){
+    if(!notifs.length){
+      body.innerHTML='<div class="wempty">&#128276; اعلانی وجود ندارد</div>';
+      return;
+    }
+    var html='';
+    notifs.forEach(function(n){
+      var t=n.sent_at?new Date(n.sent_at).toLocaleString('fa-IR'):'';
+      html+='<div class="wcard" style="border-right-color:#ef4444">'
+        +'<div style="font-size:13px;color:#e0e0e0;white-space:pre-line">'+n.message+'</div>'
+        +'<div style="font-size:11px;color:#444;margin-top:6px">'+t+'</div>'
+        +'</div>';
+    });
+    body.innerHTML=html;
+    markNotifsRead();
+    var badge=document.getElementById('wbs-badge');
+    if(badge) badge.style.display='none';
+    var tbadge=document.getElementById('wbs-ntab-badge');
+    if(tbadge) tbadge.style.display='none';
+  });
+}
 
 // ===== PERFORMANCE =====
 function renderPerf(){
