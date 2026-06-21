@@ -106,398 +106,564 @@ var H={apikey:AK,Authorization:'Bearer '+AK,Accept:'application/json','Content-T
 var UN={1:'bozorgmehr',2:'karimloo',3:'seraj',4:'ardestani',5:'kamazani',6:'ghasembik',7:'hosseini',8:'mohsenzadeh',10:'moradi',11:'dolatkhah'};
 var UNAME={1:'بزرگمهر',2:'کریم‌لو',3:'سراج‌الدینی',4:'اردستانی',5:'کمازانی',6:'قاسم‌بیک',7:'حسینی',8:'محسن‌زاده',10:'مرادی',11:'دولتخواه'};
 
-var WF={
-  pending_review:{who:'ardestani',label:'بررسی استعلام',next:'registered',checks:['استعلام قیمت کامل است','مشخصات فنی واضح است','سابقه مشتری بررسی شد']},
-  registered:{who:'ardestani',label:'تأیید سفارش',next:'stock_check',checks:['موجودی انبار کافی است','قیمت با لیست مطابقت دارد','اعتبار مشتری کافی است','تاریخ تحویل امکان‌پذیر است','مشخصات سفارش کامل است']},
-  customer_approval:{who:'karimloo',label:'تأیید مشتری جدید',next:'stock_check',checks:['هویت مشتری احراز شد','اعتبارسنجی انجام شد','مشتری مجاز به خرید است']},
-  stock_check:{who:'hosseini',label:'بررسی موجودی',next:'proforma_issued',checks:['کالاها در انبار موجود هستند','تعداد موجودی کافی است','کیفیت کالا تأیید شد']},
-  proforma_issued:{who:'dolatkhah',label:'صدور پیش‌فاکتور',next:'payment_pending',checks:['پیش‌فاکتور صادر شد','قیمت نهایی درج شده','اطلاعات بانکی کامل است']},
-  payment_pending:{who:'mohsenzadeh',label:'تأیید پرداخت',next:'dispatched',checks:['واریز مبلغ تأیید شد','رسید پرداخت دریافت شد']},
-  dispatched:{who:'moradi',label:'ارسال',next:'delivered',checks:['آدرس تحویل تأیید شد','بارنامه صادر شد','راننده در جریان است']},
-  delivered:{who:'ardestani',label:'تأیید تحویل نهایی',next:'done',checks:['کالا تحویل مشتری شد','رسید دریافت شد','مشتری رضایت دارد']}
+/* ادمین‌ها همه سفارش‌ها را می‌بینند */
+var ADMINS=['bozorgmehr','ardestani'];
+
+/* ترتیب مراحل WBS */
+var STAGES=[
+  {key:'pending_review',    who:'ardestani',   label:'بررسی استعلام'},
+  {key:'registered',        who:'ardestani',   label:'تأیید سفارش'},
+  {key:'customer_approval', who:'karimloo',    label:'تأیید مشتری جدید'},
+  {key:'stock_check',       who:'hosseini',    label:'کنترل موجودی'},
+  {key:'proforma_issued',   who:'dolatkhah',   label:'صدور پیش‌فاکتور'},
+  {key:'payment_pending',   who:'mohsenzadeh', label:'تأیید پرداخت'},
+  {key:'dispatched',        who:'moradi',      label:'ارسال'},
+  {key:'delivered',         who:'ardestani',   label:'تأیید تحویل'},
+  {key:'done',              who:'bozorgmehr',  label:'تکمیل'}
+];
+
+var CHECKS={
+  pending_review:['استعلام قیمت کامل است','مشخصات فنی واضح است','سابقه مشتری بررسی شد'],
+  registered:['موجودی انبار کافی است','قیمت با لیست مطابقت دارد','اعتبار مشتری کافی است','تاریخ تحویل امکان‌پذیر است','مشخصات سفارش کامل است'],
+  customer_approval:['هویت مشتری احراز شد','اعتبارسنجی انجام شد','مشتری مجاز به خرید است'],
+  stock_check:['کالاها در انبار موجود هستند','تعداد موجودی کافی است','کیفیت کالا تأیید شد'],
+  proforma_issued:['پیش‌فاکتور صادر شد','قیمت نهایی درج شده','اطلاعات بانکی کامل است'],
+  payment_pending:['واریز مبلغ تأیید شد','رسید پرداخت دریافت شد'],
+  dispatched:['آدرس تحویل تأیید شد','بارنامه صادر شد','راننده در جریان است'],
+  delivered:['کالا تحویل مشتری شد','رسید دریافت شد','مشتری رضایت دارد']
 };
 
 function myUN(){return UN[parseInt(localStorage.getItem('meId')||'0')]||'';}
 function myName(){return UNAME[parseInt(localStorage.getItem('meId')||'0')]||'کاربر';}
-function myStages(){var un=myUN();return Object.keys(WF).filter(function(k){return WF[k].who===un;});}
+function isAdmin(){return ADMINS.indexOf(myUN())>-1;}
+function sIdx(k){for(var i=0;i<STAGES.length;i++){if(STAGES[i].key===k)return i;}return -1;}
+function uLabel(un){for(var id in UN){if(UN[id]===un)return UNAME[id]||un;}return un;}
 
-function fetchOrders(cb){
-  var stages=myStages();
-  if(!stages.length){cb([]);return;}
-  var orFilter=stages.map(function(s){return 'order_status.eq.'+s;}).join(',');
-  fetch(SUPA+'/rest/v1/crm_orders?select=*,crm_customers(customer_status)&or=('+orFilter+')&order=created_at.asc',{headers:H})
-    .then(function(r){return r.json();})
-    .then(function(d){cb(Array.isArray(d)?d:[]);})
-    .catch(function(){cb([]);});
+function stStat(orderStatus,stageKey){
+  if(orderStatus==='rejected'||orderStatus==='cancelled') return 'cancelled';
+  var ci=sIdx(orderStatus),si=sIdx(stageKey);
+  if(si<0) return 'unknown';
+  if(ci<0) return 'pending';
+  if(si<ci) return 'done';
+  if(si===ci) return 'active';
+  return 'pending';
 }
 
-function logAndAdvance(order,checklistState,action,reason,cb){
+function prog(order){
+  var st=order.order_status;
+  if(st==='done') return 100;
+  if(st==='rejected'||st==='cancelled') return 0;
+  var ci=sIdx(st);
+  if(ci<0) return 0;
+  return Math.round((ci/(STAGES.length-1))*100);
+}
+
+/* ====== STATE ====== */
+var allOrders=[];
+var logMap={}; /* order_id -> [log rows] */
+var checkState={}; /* 'o'+id+'_'+stageKey -> [bool,...] */
+var detailId=null;
+var curTab='mine';
+
+/* ====== DATA ====== */
+function fetchAll(cb){
+  var un=myUN(); if(!un){cb();return;}
+  var ordersUrl=isAdmin()
+    ? SUPA+'/rest/v1/crm_orders?select=*&order=created_at.desc&limit=200'
+    : SUPA+'/rest/v1/crm_orders?select=*&order=created_at.desc&limit=200';
+
+  Promise.all([
+    fetch(ordersUrl,{headers:H}).then(function(r){return r.json();}),
+    fetch(SUPA+'/rest/v1/order_stage_log?select=order_id,stage,action,completed_at,assigned_to,reject_reason&order=completed_at.asc',{headers:H}).then(function(r){return r.json();})
+  ]).then(function(res){
+    var orders=Array.isArray(res[0])?res[0]:[];
+    var logs=Array.isArray(res[1])?res[1]:[];
+
+    /* build log map */
+    logMap={};
+    logs.forEach(function(l){
+      if(!logMap[l.order_id]) logMap[l.order_id]=[];
+      logMap[l.order_id].push(l);
+    });
+
+    /* filter for non-admin */
+    if(!isAdmin()){
+      var myStages=STAGES.filter(function(s){return s.who===un;}).map(function(s){return s.key;});
+      var myStageSet={};
+      myStages.forEach(function(k){myStageSet[k]=true;});
+      /* orders I'm involved in = currently at my stage OR I have a log entry */
+      var involved={};
+      logs.forEach(function(l){if(l.assigned_to===un) involved[l.order_id]=true;});
+      orders=orders.filter(function(o){
+        return myStageSet[o.order_status]||involved[o.id];
+      });
+    }
+
+    allOrders=orders;
+    cb();
+  }).catch(function(){allOrders=[];cb();});
+}
+
+function myOrders(){
+  if(isAdmin()) return allOrders;
+  var un=myUN();
+  var myStages=STAGES.filter(function(s){return s.who===un;}).map(function(s){return s.key;});
+  var active=allOrders.filter(function(o){return myStages.indexOf(o.order_status)>-1;});
+  if(curTab==='mine') return active;
+  return allOrders;
+}
+
+function logForOrder(id){return logMap[id]||[];}
+
+/* ====== ACTIONS ====== */
+function doAdvance(order,approved,reason,checkData){
   var stage=order.order_status;
-  var wf=WF[stage]||{};
+  var si=sIdx(stage);
   var nextStage;
-  if(action!=='approved'){
+  if(!approved){
     nextStage='rejected';
   } else if(stage==='registered'){
-    var custStatus=(order.crm_customers&&order.crm_customers.customer_status)||'active';
-    nextStage=(custStatus==='new')?'customer_approval':'stock_check';
+    nextStage='stock_check'; /* customer_approval branch handled by panel */
   } else {
-    nextStage=wf.next||'done';
+    nextStage=STAGES[si+1]?STAGES[si+1].key:'done';
   }
-  var now=new Date().toISOString();
-  var started=wbsStartTimes[order.id]||now;
-  var durMin=Math.round((new Date(now)-new Date(started))/60000);
 
+  var now=new Date().toISOString();
   fetch(SUPA+'/rest/v1/order_stage_log',{
     method:'POST',headers:H,
-    body:JSON.stringify({order_id:order.id,stage:stage,assigned_to:myUN(),completed_at:now,action:action,reject_reason:reason||null,checklist:checklistState,duration_minutes:durMin})
+    body:JSON.stringify({order_id:order.id,stage:stage,assigned_to:myUN(),completed_at:now,action:approved?'approved':'rejected',reject_reason:reason||null,checklist:checkData})
   }).catch(function(){});
 
   var patch={order_status:nextStage};
-  if(action==='rejected') patch.reject_reason=reason;
+  if(!approved) patch.reject_reason=reason;
   fetch(SUPA+'/rest/v1/crm_orders?id=eq.'+order.id,{method:'PATCH',headers:H,body:JSON.stringify(patch)})
-    .then(function(){cb(true);}).catch(function(){cb(false);});
+    .then(function(){
+      /* update local state */
+      var o=allOrders.find(function(x){return x.id===order.id;});
+      if(o){
+        o.order_status=nextStage;
+        if(!logMap[order.id]) logMap[order.id]=[];
+        logMap[order.id].push({order_id:order.id,stage:stage,action:approved?'approved':'rejected',completed_at:now,assigned_to:myUN(),reject_reason:reason||null});
+      }
+      if(detailId===order.id) renderDetail(order.id);
+      else renderList();
+    }).catch(function(){alert('خطا در ثبت');});
 }
 
-// ===== NOTIFICATIONS =====
-function fetchNotifs(cb){
-  var un=myUN();
-  if(!un){cb([]);return;}
-  fetch(SUPA+'/rest/v1/crm_notifications?recipient=eq.'+un+'&status=eq.unread&order=sent_at.desc&limit=30',{headers:H})
-    .then(function(r){return r.json();})
-    .then(function(d){cb(Array.isArray(d)?d:[]);})
-    .catch(function(){cb([]);});
-}
-
-function markNotifsRead(){
-  var un=myUN();
-  if(!un) return;
-  fetch(SUPA+'/rest/v1/crm_notifications?recipient=eq.'+un+'&status=eq.unread',{
-    method:'PATCH',headers:H,
-    body:JSON.stringify({status:'read'})
-  }).catch(function(){});
-}
-
-function updateBadge(){
-  fetchNotifs(function(notifs){
-    var badge=document.getElementById('wbs-badge');
-    if(!badge) return;
-    if(notifs.length>0){
-      badge.textContent=notifs.length>9?'9+':notifs.length;
-      badge.style.display='flex';
-      var tb=document.getElementById('wbs-ntab-badge');
-      if(tb){tb.textContent=notifs.length;tb.style.display='inline';}
-    } else {
-      badge.style.display='none';
-      var tb=document.getElementById('wbs-ntab-badge');
-      if(tb) tb.style.display='none';
-    }
-  });
-}
-
-function fetchPerf(cb){
-  fetch(SUPA+'/rest/v1/quarterly_performance?select=*',{headers:H})
-    .then(function(r){return r.json();})
-    .then(function(d){cb(Array.isArray(d)?d:[]);})
-    .catch(function(){cb([]);});
-}
-
-var wbsStartTimes={};
-var checkStates={};
-var ordersCache=[];
-var perfCache=[];
-var curView='tasks';
-
-// === STYLES ===
-var css='#wbs-fab{position:fixed;bottom:80px;left:14px;width:46px;height:46px;border-radius:50%;background:#f0a500;color:#000;border:none;font-size:18px;cursor:pointer;z-index:8999;box-shadow:0 4px 14px #0008;display:flex;align-items:center;justify-content:center;transition:transform .15s;position:relative;}'
+/* ====== STYLES ====== */
+var css=
+'#wbs-fab{position:fixed;bottom:80px;left:14px;z-index:8999;width:46px;height:46px;border-radius:50%;background:#f0a500;color:#000;border:none;font-size:18px;cursor:pointer;box-shadow:0 4px 14px #0008;display:flex;align-items:center;justify-content:center;transition:transform .15s;}'
 +'#wbs-fab:hover{transform:scale(1.08);}'
-+'#wbs-badge{position:absolute;top:-6px;right:-6px;width:18px;height:18px;border-radius:50%;background:#ef4444;color:#fff;font-size:10px;font-weight:700;display:none;align-items:center;justify-content:center;pointer-events:none;}'
-+'#wbs-ov{display:none;position:fixed;inset:0;background:#0d0d0d;z-index:9000;direction:rtl;flex-direction:column;font-family:inherit;}'
++'#wbs-badge{position:absolute;top:-5px;right:-5px;min-width:18px;height:18px;border-radius:9px;background:#ef4444;color:#fff;font-size:10px;font-weight:700;display:none;align-items:center;justify-content:center;pointer-events:none;padding:0 3px;}'
++'#wbs-ov{display:none;position:fixed;inset:0;background:#0a0a0a;z-index:9000;direction:rtl;flex-direction:column;font-family:inherit;}'
 +'#wbs-ov.on{display:flex;}'
-+'#wbs-hd{background:#141414;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #252525;flex-shrink:0;}'
++'#wbs-hd{background:#111;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #1e1e1e;flex-shrink:0;}'
++'#wbs-hd-l{display:flex;flex-direction:column;}'
 +'#wbs-hd-title{font-size:15px;font-weight:700;color:#e8e8e8;}'
-+'#wbs-x{background:none;border:none;color:#777;font-size:22px;cursor:pointer;line-height:1;padding:2px 6px;}'
-+'#wbs-tabs-bar{display:flex;border-bottom:1px solid #252525;flex-shrink:0;}'
-+'.wtab{padding:11px 20px;cursor:pointer;font-size:13px;color:#666;border-bottom:2px solid transparent;transition:color .15s;}'
-+'.wtab.on{color:#f0a500;border-bottom-color:#f0a500;}'
-+'#wbs-body{flex:1;overflow-y:auto;padding:14px 16px;}'
-+'.wcard{background:#191919;border-radius:10px;padding:14px;margin-bottom:10px;border-right:3px solid #f0a500;}'
-+'.wc-title{font-size:14px;font-weight:700;color:#e0e0e0;margin-bottom:3px;}'
-+'.wc-meta{font-size:12px;color:#555;margin-bottom:10px;}'
-+'.w-bar-wrap{height:5px;background:#222;border-radius:3px;margin-bottom:3px;}'
-+'.w-bar-fill{height:5px;border-radius:3px;background:#f0a500;transition:width .3s;}'
-+'.w-prog{font-size:11px;color:#555;margin-bottom:10px;}'
-+'.wchk{display:flex;align-items:center;gap:10px;padding:8px 10px;margin-bottom:5px;background:#101010;border-radius:7px;cursor:pointer;border:1px solid #1e1e1e;transition:border-color .15s;}'
-+'.wchk.ok{border-color:#22c55e35;}'
-+'.wcb{width:20px;height:20px;border-radius:4px;border:2px solid #3a3a3a;display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0;transition:all .15s;}'
-+'.wcb.t{background:#22c55e;border-color:#22c55e;color:#000;font-weight:700;}'
-+'.wck-lbl{font-size:13px;color:#ccc;}'
-+'.wbtn-row{display:flex;gap:8px;margin-top:10px;}'
-+'.wapprove{background:#22c55e;color:#000;border:none;padding:10px 16px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;flex:1;transition:opacity .15s;}'
-+'.wapprove:disabled{background:#1c3828;color:#2d5c3a;cursor:not-allowed;}'
-+'.wreject{background:#191919;color:#ef4444;border:1px solid #ef444428;padding:10px 14px;border-radius:8px;font-size:13px;cursor:pointer;}'
-+'.wrej-box{background:#180a0a;border:1px solid #ef444425;border-radius:8px;padding:10px;margin-top:8px;display:none;}'
-+'.wrej-box.on{display:block;}'
-+'.wrej-ta{width:100%;background:#0e0e0e;border:1px solid #2a2a2a;border-radius:6px;padding:8px;color:#ddd;font-size:13px;resize:none;font-family:inherit;margin-top:5px;}'
-+'.wrej-send{background:#ef4444;color:#fff;border:none;padding:7px 14px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;margin-top:6px;}'
-+'.wempty{text-align:center;padding:50px 20px;color:#3a3a3a;font-size:14px;line-height:2;}'
-+'.wloading{text-align:center;padding:40px;color:#555;font-size:13px;}'
-+'.wprow{background:#191919;border-radius:9px;padding:12px 14px;margin-bottom:8px;}'
-+'.wpname{font-size:13px;font-weight:700;color:#e0e0e0;}'
-+'.wprole{font-size:11px;color:#444;margin-bottom:8px;}'
-+'.wpstats{display:flex;gap:16px;margin-top:6px;}'
-+'.wpstat .val{font-size:17px;font-weight:700;color:#f0a500;}'
-+'.wpstat .lbl{font-size:10px;color:#444;}'
-+'.wscore{padding:3px 9px;border-radius:10px;font-size:11px;font-weight:700;}'
-+'.wsa{background:#22c55e18;color:#22c55e;}'
-+'.wsb{background:#f0a50018;color:#f0a500;}'
-+'.wsc{background:#ef444418;color:#ef4444;}'
-+'.wqsel{background:#191919;border:1px solid #2a2a2a;color:#ddd;padding:7px 10px;border-radius:7px;font-size:13px;cursor:pointer;font-family:inherit;}';
++'#wbs-hd-sub{font-size:12px;color:#555;margin-top:2px;}'
++'#wbs-hd-r{display:flex;align-items:center;gap:8px;}'
++'#wbs-back{background:#191919;border:1px solid #2a2a2a;color:#aaa;padding:6px 12px;border-radius:7px;font-size:12px;cursor:pointer;display:none;}'
++'#wbs-x{background:none;border:none;color:#555;font-size:22px;cursor:pointer;padding:2px 6px;}'
++'#wbs-tabs{display:flex;gap:0;border-bottom:1px solid #1e1e1e;flex-shrink:0;background:#0e0e0e;}'
++'.wtab2{padding:10px 20px;cursor:pointer;font-size:13px;color:#555;border-bottom:2px solid transparent;transition:color .15s;}'
++'.wtab2.on{color:#f0a500;border-bottom-color:#f0a500;}'
++'#wbs-body{flex:1;overflow-y:auto;padding:0;}'
+
+/* project cards */
++'.pj-card{background:#111;border-bottom:1px solid #1a1a1a;padding:14px 16px;cursor:pointer;transition:background .12s;}'
++'.pj-card:hover{background:#161616;}'
++'.pj-card-hd{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;}'
++'.pj-id{font-size:13px;color:#888;}'
++'.pj-customer{font-size:15px;font-weight:700;color:#e8e8e8;margin-bottom:2px;}'
++'.pj-amount{font-size:12px;color:#555;}'
++'.pj-badge{padding:3px 9px;border-radius:10px;font-size:11px;font-weight:700;white-space:nowrap;}'
++'.pj-active{background:#f0a50020;color:#f0a500;}'
++'.pj-done{background:#22c55e18;color:#22c55e;}'
++'.pj-rejected{background:#ef444418;color:#ef4444;}'
++'.pj-pending{background:#3b82f618;color:#3b82f6;}'
++'.pj-prog-wrap{display:flex;align-items:center;gap:10px;margin-bottom:8px;}'
++'.pj-prog-bar{flex:1;height:4px;background:#1e1e1e;border-radius:2px;overflow:hidden;}'
++'.pj-prog-fill{height:4px;border-radius:2px;background:#f0a500;transition:width .3s;}'
++'.pj-prog-pct{font-size:11px;color:#444;width:30px;text-align:left;}'
++'.pj-stage-row{display:flex;align-items:center;gap:6px;}'
++'.pj-stage-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}'
++'.dot-active{background:#f0a500;box-shadow:0 0 6px #f0a50080;}'
++'.dot-done{background:#22c55e;}'
++'.dot-pending{background:#2a2a2a;}'
++'.dot-rejected{background:#ef4444;}'
++'.pj-stage-lbl{font-size:12px;color:#555;}'
++'.pj-stage-who{font-size:11px;color:#333;margin-right:auto;}'
++'.pj-myturn{background:#f0a50015;border-right:3px solid #f0a500;}'
+
+/* detail view */
++'#wbs-detail{padding:0;}'
++'.dj-hd{background:#111;padding:16px;border-bottom:1px solid #1e1e1e;}'
++'.dj-title{font-size:17px;font-weight:700;color:#e8e8e8;margin-bottom:4px;}'
++'.dj-meta{font-size:12px;color:#555;display:flex;gap:12px;flex-wrap:wrap;}'
++'.dj-meta span{display:flex;align-items:center;gap:4px;}'
++'.dj-prog{padding:12px 16px;background:#0e0e0e;border-bottom:1px solid #1a1a1a;}'
++'.dj-prog-bar{height:6px;background:#1e1e1e;border-radius:3px;overflow:hidden;margin-bottom:6px;}'
++'.dj-prog-fill{height:6px;border-radius:3px;background:linear-gradient(to left,#22c55e,#f0a500);}'
++'.dj-prog-lbl{font-size:11px;color:#444;display:flex;justify-content:space-between;}'
++'.stage-list{padding:8px 0;}'
++'.stage-item{display:flex;align-items:flex-start;gap:0;padding:0 16px;}'
++'.stage-line-wrap{display:flex;flex-direction:column;align-items:center;width:28px;flex-shrink:0;margin-left:12px;}'
++'.stage-icon{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0;margin:10px 0 0 0;}'
++'.si-done{background:#22c55e20;color:#22c55e;border:2px solid #22c55e40;}'
++'.si-active{background:#f0a50020;color:#f0a500;border:2px solid #f0a50060;box-shadow:0 0 10px #f0a50030;}'
++'.si-pending{background:#1a1a1a;color:#333;border:2px solid #222;}'
++'.si-cancelled{background:#ef444420;color:#ef4444;border:2px solid #ef444440;}'
++'.stage-line{width:2px;flex:1;min-height:16px;background:#1e1e1e;}'
++'.stage-line.done{background:#22c55e40;}'
++'.stage-body{flex:1;padding:10px 0 10px 0;border-bottom:1px solid #141414;}'
++'.stage-item:last-child .stage-body{border-bottom:none;}'
++'.stage-name{font-size:13px;font-weight:700;color:#ccc;margin-bottom:3px;display:flex;align-items:center;justify-content:space-between;}'
++'.stage-name-done{color:#22c55e;}'
++'.stage-name-active{color:#f0a500;}'
++'.stage-who-chip{font-size:11px;color:#555;background:#1a1a1a;padding:2px 8px;border-radius:10px;}'
++'.stage-who-chip.mine{color:#f0a500;background:#f0a50015;}'
++'.stage-log{font-size:11px;color:#444;margin-top:3px;}'
++'.stage-log.rejected{color:#ef4444;}'
++'.stage-action{margin-top:12px;background:#0e0e0e;border-radius:10px;padding:12px;border:1px solid #1e1e1e;}'
++'.chk-item{display:flex;align-items:center;gap:10px;padding:8px;margin-bottom:4px;background:#111;border-radius:7px;cursor:pointer;border:1px solid #1a1a1a;}'
++'.chk-item.ok{border-color:#22c55e25;}'
++'.chk-box{width:20px;height:20px;border-radius:4px;border:2px solid #2a2a2a;display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0;}'
++'.chk-box.t{background:#22c55e;border-color:#22c55e;color:#000;font-weight:700;}'
++'.chk-lbl{font-size:13px;color:#bbb;}'
++'.action-btns{display:flex;gap:8px;margin-top:10px;}'
++'.btn-approve{background:#22c55e;color:#000;border:none;padding:10px 0;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;flex:1;}'
++'.btn-approve:disabled{background:#1a2e1f;color:#2d5c3a;cursor:not-allowed;}'
++'.btn-reject{background:transparent;color:#ef4444;border:1px solid #ef444430;padding:10px 16px;border-radius:8px;font-size:13px;cursor:pointer;}'
++'.rej-box{display:none;margin-top:8px;background:#140808;border:1px solid #ef444420;border-radius:8px;padding:10px;}'
++'.rej-box.on{display:block;}'
++'.rej-ta{width:100%;background:#0e0e0e;border:1px solid #2a2a2a;border-radius:6px;padding:8px;color:#ddd;font-size:13px;resize:none;font-family:inherit;box-sizing:border-box;}'
++'.rej-send{background:#ef4444;color:#fff;border:none;padding:7px 14px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;margin-top:6px;}'
++'.empty-state{text-align:center;padding:60px 20px;color:#2a2a2a;font-size:15px;line-height:2.5;}'
++'.loading-state{text-align:center;padding:50px;color:#333;font-size:13px;}'
++'.summary-bar{background:#0e0e0e;padding:10px 16px;display:flex;gap:16px;border-bottom:1px solid #1a1a1a;flex-shrink:0;}'
++'.sum-item{text-align:center;}'
++'.sum-val{font-size:18px;font-weight:700;color:#f0a500;}'
++'.sum-lbl{font-size:10px;color:#333;}'
+;
 
 var styleEl=document.createElement('style');
 styleEl.textContent=css;
 document.head.appendChild(styleEl);
 
-// FAB button
+/* ====== DOM ====== */
 var fab=document.createElement('button');
 fab.id='wbs-fab';
-fab.title='وظایف WBS';
+fab.title='مدیریت پروژه‌ها';
 fab.style.position='relative';
-fab.innerHTML='&#128203;<span id="wbs-badge"></span>';
+fab.innerHTML='📋<span id="wbs-badge"></span>';
 document.body.appendChild(fab);
 
-// Overlay
 var ov=document.createElement('div');
 ov.id='wbs-ov';
-ov.innerHTML='<div id="wbs-hd"><div id="wbs-hd-title">وظایف و ارزیابی &mdash; <span id="wbs-username" style="color:#f0a500;font-size:13px;"></span></div><button id="wbs-x">&times;</button></div>'
-+'<div id="wbs-tabs-bar"><div class="wtab on" data-v="tasks">&#128203; وظایف من</div><div class="wtab" data-v="perf">&#128202; ارزیابی فصلی</div><div class="wtab" data-v="notifs">&#128276; اعلان‌ها <span id="wbs-ntab-badge" style="display:none;background:#ef4444;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;margin-right:4px"></span></div></div>'
-+'<div id="wbs-body"></div>';
+ov.innerHTML=
+  '<div id="wbs-hd">'
+    +'<div id="wbs-hd-l">'
+      +'<div id="wbs-hd-title">مدیریت سفارش‌ها</div>'
+      +'<div id="wbs-hd-sub">نمایش WBS — <span id="wbs-uname" style="color:#f0a500"></span></div>'
+    +'</div>'
+    +'<div id="wbs-hd-r">'
+      +'<button id="wbs-back">← برگشت</button>'
+      +'<button id="wbs-x">×</button>'
+    +'</div>'
+  +'</div>'
+  +'<div id="wbs-tabs"></div>'
+  +'<div id="wbs-body"><div class="loading-state">در حال بارگذاری...</div></div>';
 document.body.appendChild(ov);
 
-setTimeout(updateBadge, 1000);
-setInterval(updateBadge, 30000);
-
+/* ====== EVENTS ====== */
+document.getElementById('wbs-x').addEventListener('click',function(){ov.classList.remove('on');});
+document.getElementById('wbs-back').addEventListener('click',function(){
+  detailId=null;
+  document.getElementById('wbs-back').style.display='none';
+  renderList();
+});
 fab.addEventListener('click',function(){
   ov.classList.add('on');
-  document.getElementById('wbs-username').textContent=myName();
-  renderView(curView);
-  updateBadge();
+  document.getElementById('wbs-uname').textContent=myName();
+  load();
 });
-document.getElementById('wbs-x').addEventListener('click',function(){ov.classList.remove('on');});
-ov.querySelectorAll('.wtab').forEach(function(t){
+
+/* ====== LOAD ====== */
+function load(){
+  document.getElementById('wbs-body').innerHTML='<div class="loading-state">در حال بارگذاری...</div>';
+  fetchAll(function(){
+    buildTabs();
+    renderList();
+    updateBadge();
+  });
+}
+
+function buildTabs(){
+  var un=myUN();
+  var tabsEl=document.getElementById('wbs-tabs');
+  tabsEl.innerHTML='';
+  if(isAdmin()){
+    addTab(tabsEl,'mine','وظایف جاری');
+    addTab(tabsEl,'all','همه سفارش‌ها');
+  } else {
+    addTab(tabsEl,'mine','نوبت من');
+    addTab(tabsEl,'all','همه سفارش‌های من');
+  }
+}
+
+function addTab(el,key,label){
+  var t=document.createElement('div');
+  t.className='wtab2'+(curTab===key?' on':'');
+  t.textContent=label;
   t.addEventListener('click',function(){
-    ov.querySelectorAll('.wtab').forEach(function(x){x.classList.remove('on');});
+    curTab=key;
+    el.querySelectorAll('.wtab2').forEach(function(x){x.classList.remove('on');});
     t.classList.add('on');
-    curView=t.dataset.v;
-    renderView(curView);
+    detailId=null;
+    document.getElementById('wbs-back').style.display='none';
+    renderList();
   });
-});
-
-function renderView(v){
-  if(v==='tasks') renderTasks();
-  else if(v==='notifs') renderNotifs();
-  else renderPerf();
+  el.appendChild(t);
 }
 
-// ===== TASKS =====
-function renderTasks(){
+/* ====== BADGE ====== */
+function updateBadge(){
+  var un=myUN(); if(!un) return;
+  var myStages=STAGES.filter(function(s){return s.who===un;}).map(function(s){return s.key;});
+  var count=allOrders.filter(function(o){return myStages.indexOf(o.order_status)>-1;}).length;
+  var badge=document.getElementById('wbs-badge');
+  if(!badge) return;
+  if(count>0){
+    badge.textContent=count>9?'9+':count;
+    badge.style.display='flex';
+  } else {
+    badge.style.display='none';
+  }
+}
+
+/* ====== LIST VIEW ====== */
+function renderList(){
+  document.getElementById('wbs-back').style.display='none';
+  var orders=myOrders();
   var body=document.getElementById('wbs-body');
-  body.innerHTML='<div class="wloading">در حال بارگذاری...</div>';
-  fetchOrders(function(orders){
-    ordersCache=orders;
-    if(!orders.length){
-      body.innerHTML='<div class="wempty">✅ هیچ سفارشی در نوبت شما نیست<br><small style="color:#333">بعد از تأیید سفارش‌ها اینجا نمایش داده می‌شود</small></div>';
-      return;
-    }
-    body.innerHTML='<div style="font-size:12px;color:#444;margin-bottom:12px">'+orders.length+' سفارش در نوبت شما</div>';
-    orders.forEach(function(o){
-      if(!wbsStartTimes[o.id]) wbsStartTimes[o.id]=new Date().toISOString();
-      var k='o'+o.id;
-      var stage=o.order_status||'';
-      var wf=WF[stage]||{};
-      var checks=wf.checks||[];
-      if(!checkStates[k]) checkStates[k]=checks.map(function(){return false;});
-      renderCard(body,o,k,stage,wf,checks);
-    });
-  });
-}
 
-function renderCard(body,o,k,stage,wf,checks){
-  var card=document.createElement('div');
-  card.className='wcard';
-  card.id='wcard-'+o.id;
-  body.appendChild(card);
-  updateCard(o,k,stage,wf,checks);
-}
+  if(!orders.length){
+    body.innerHTML='<div class="empty-state">📋<br>سفارشی برای نمایش وجود ندارد</div>';
+    return;
+  }
 
-function updateCard(o,k,stage,wf,checks){
-  var card=document.getElementById('wcard-'+o.id);
-  if(!card) return;
-  var done=checkStates[k].filter(Boolean).length;
-  var total=checks.length;
-  var allDone=total>0&&done===total;
-  var pct=total>0?Math.round(done/total*100):0;
-  var created=o.created_at?new Date(o.created_at).toLocaleDateString('fa-IR'):'';
-  var customerName=o.customer_name||o.client_name||('#'+o.id);
+  var un=myUN();
+  var myStageKeys=STAGES.filter(function(s){return s.who===un;}).map(function(s){return s.key;});
 
-  var chksHtml=checks.map(function(c,i){
-    var t=checkStates[k][i];
-    return '<div class="wchk'+(t?' ok':'')+'" onclick="wT(\''+k+'\','+i+','+o.id+')">'
-      +'<div class="wcb'+(t?' t':'')+'">'+( t?'&#10003;':'' )+'</div>'
-      +'<div class="wck-lbl">'+c+'</div></div>';
-  }).join('');
+  /* summary bar */
+  var total=orders.length;
+  var active=orders.filter(function(o){return myStageKeys.indexOf(o.order_status)>-1;}).length;
+  var done=orders.filter(function(o){return o.order_status==='done';}).length;
+  var rejected=orders.filter(function(o){return o.order_status==='rejected';}).length;
 
-  card.innerHTML='<div class="wc-title">سفارش #'+o.id+' &mdash; '+customerName+'</div>'
-    +'<div class="wc-meta">مرحله: '+(wf.label||stage)+'&nbsp;&nbsp;|&nbsp;&nbsp;'+created+'</div>'
-    +'<div class="w-bar-wrap"><div class="w-bar-fill" style="width:'+pct+'%;'+(allDone?'background:#22c55e':'')+'"></div></div>'
-    +'<div class="w-prog">'+done+' از '+total+' مورد'+(allDone?' &mdash; آماده تأیید ✅':'')+'</div>'
-    +'<div>'+chksHtml+'</div>'
-    +'<div class="wbtn-row">'
-      +'<button class="wapprove" id="wapprove-'+o.id+'" '+(allDone?'':'disabled')+' onclick="wApprove('+o.id+')">'
-        +'✓ تأیید و ارسال به '+(wf.next||'مرحله بعد')+'‌'
-      +'</button>'
-      +'<button class="wreject" onclick="wToggleRej('+o.id+')">× رد</button>'
-    +'</div>'
-    +'<div class="wrej-box" id="wrej-'+o.id+'">'
-      +'<div style="font-size:12px;color:#ef4444;font-weight:700">دلیل رد سفارش</div>'
-      +'<textarea class="wrej-ta" id="wrej-ta-'+o.id+'" rows="2" placeholder="توضیح دهید..."></textarea>'
-      +'<button class="wrej-send" onclick="wReject('+o.id+')">ارسال رد</button>'
+  var html='<div class="summary-bar">'
+    +'<div class="sum-item"><div class="sum-val">'+total+'</div><div class="sum-lbl">کل سفارش</div></div>'
+    +'<div class="sum-item"><div class="sum-val" style="color:#f0a500">'+active+'</div><div class="sum-lbl">نوبت من</div></div>'
+    +'<div class="sum-item"><div class="sum-val" style="color:#22c55e">'+done+'</div><div class="sum-lbl">تکمیل</div></div>'
+    +'<div class="sum-item"><div class="sum-val" style="color:#ef4444">'+rejected+'</div><div class="sum-lbl">رد شده</div></div>'
     +'</div>';
+
+  /* sort: my-turn first */
+  var sorted=orders.slice().sort(function(a,b){
+    var am=myStageKeys.indexOf(a.order_status)>-1?0:1;
+    var bm=myStageKeys.indexOf(b.order_status)>-1?0:1;
+    if(am!==bm) return am-bm;
+    return new Date(b.created_at)-new Date(a.created_at);
+  });
+
+  sorted.forEach(function(o){
+    var isMy=myStageKeys.indexOf(o.order_status)>-1;
+    var pct=prog(o);
+    var curStage=STAGES.find(function(s){return s.key===o.order_status;})||{label:o.order_status,who:''};
+    var statusCls=o.order_status==='done'?'pj-done':o.order_status==='rejected'||o.order_status==='cancelled'?'pj-rejected':isMy?'pj-active':'pj-pending';
+    var cname=o.customer_name||o.client_name||('#'+o.customer_id);
+
+    html+='<div class="pj-card'+(isMy?' pj-myturn':'')+'" onclick="wbsOpenDetail('+o.id+')">'
+      +'<div class="pj-card-hd">'
+        +'<div>'
+          +'<div class="pj-id">سفارش #'+o.id+'</div>'
+          +'<div class="pj-customer">'+cname+'</div>'
+          +(o.amount?'<div class="pj-amount">'+Number(o.amount).toLocaleString('fa-IR')+' تومان</div>':'')
+        +'</div>'
+        +'<div class="pj-badge '+statusCls+'">'+curStage.label+'</div>'
+      +'</div>'
+      +'<div class="pj-prog-wrap">'
+        +'<div class="pj-prog-bar"><div class="pj-prog-fill" style="width:'+pct+'%'+(o.order_status==='done'?';background:#22c55e':'')+'"></div></div>'
+        +'<div class="pj-prog-pct">'+pct+'%</div>'
+      +'</div>'
+      +'<div class="pj-stage-row">'
+        +STAGES.filter(function(s,i){return i<8;}).map(function(s){
+          var st=stStat(o.order_status,s.key);
+          return '<div class="pj-stage-dot dot-'+st+'" title="'+s.label+'"></div>';
+        }).join('')
+        +'<span class="pj-stage-who">'+uLabel(curStage.who)+'</span>'
+      +'</div>'
+    +'</div>';
+  });
+
+  body.innerHTML=html;
 }
 
-window.wT=function(k,i,id){
-  checkStates[k][i]=!checkStates[k][i];
-  var o=ordersCache.find(function(x){return x.id===id;});
-  if(!o) return;
-  var stage=o.order_status||'';
-  var wf=WF[stage]||{};
-  updateCard(o,k,stage,wf,wf.checks||[]);
+/* ====== DETAIL VIEW ====== */
+window.wbsOpenDetail=function(id){
+  detailId=id;
+  document.getElementById('wbs-back').style.display='block';
+  renderDetail(id);
 };
 
-window.wApprove=function(id){
-  var o=ordersCache.find(function(x){return x.id===id;});
-  if(!o) return;
-  var btn=document.getElementById('wapprove-'+id);
-  if(btn){btn.disabled=true;btn.textContent='در حال ثبت...';}
-  logAndAdvance(o,checkStates['o'+id],'approved',null,function(ok){
-    var card=document.getElementById('wcard-'+id);
-    if(ok&&card){
-      card.style.transition='opacity .4s';card.style.opacity='0.4';
-      card.innerHTML='<div style="text-align:center;padding:18px;color:#22c55e;font-size:13px">✅ تأیید شد و به مرحله بعد ارسال گردید</div>';
-      setTimeout(function(){card.remove();},2200);
-    } else if(btn){btn.disabled=false;btn.textContent='سعی مجدد';}
+function renderDetail(id){
+  var order=allOrders.find(function(o){return o.id===id;});
+  if(!order){document.getElementById('wbs-body').innerHTML='<div class="empty-state">سفارش یافت نشد</div>';return;}
+
+  var un=myUN();
+  var pct=prog(order);
+  var logs=logForOrder(id);
+  var cname=order.customer_name||order.client_name||('#'+order.customer_id);
+  var created=order.created_at?new Date(order.created_at).toLocaleDateString('fa-IR'):'';
+
+  var html='<div id="wbs-detail">'
+    +'<div class="dj-hd">'
+      +'<div class="dj-title">📦 سفارش #'+id+' — '+cname+'</div>'
+      +'<div class="dj-meta">'
+        +(order.amount?'<span>💰 '+Number(order.amount).toLocaleString('fa-IR')+' تومان</span>':'')
+        +(created?'<span>📅 '+created+'</span>':'')
+        +'<span>🔖 '+order.order_status+'</span>'
+      +'</div>'
+    +'</div>'
+    +'<div class="dj-prog">'
+      +'<div class="dj-prog-bar"><div class="dj-prog-fill" style="width:'+pct+'%"></div></div>'
+      +'<div class="dj-prog-lbl"><span>'+pct+'% پیشرفت</span><span>'+(STAGES.findIndex(function(s){return s.key===order.order_status;})+1)+' از '+STAGES.length+' مرحله</span></div>'
+    +'</div>'
+    +'<div class="stage-list">';
+
+  STAGES.forEach(function(stage,idx){
+    var st=stStat(order.order_status,stage.key);
+    var iconCls='si-'+st;
+    var icon=st==='done'?'✓':st==='active'?'●':st==='cancelled'?'✕':'○';
+    var log=logs.find(function(l){return l.stage===stage.key;});
+    var isMine=stage.who===un;
+    var isActive=st==='active';
+    var isDone=st==='done';
+    var isLast=idx===STAGES.length-1;
+
+    html+='<div class="stage-item">'
+      +'<div class="stage-line-wrap">'
+        +'<div class="stage-icon '+iconCls+'">'+icon+'</div>'
+        +(!isLast?'<div class="stage-line'+(isDone?' done':'')+'"></div>':'')
+      +'</div>'
+      +'<div class="stage-body">'
+        +'<div class="stage-name'+(isDone?' stage-name-done':isActive?' stage-name-active':'')+'">'
+          +stage.label
+          +'<span class="stage-who-chip'+(isMine?' mine':'')+'">'+uLabel(stage.who)+'</span>'
+        +'</div>'
+        +(log?'<div class="stage-log'+(log.action==='rejected'?' rejected':'')+'">'+
+          (log.action==='approved'?'✓ تأیید شد':'✕ رد شد')+
+          (log.completed_at?' — '+new Date(log.completed_at).toLocaleDateString('fa-IR'):'')+
+          (log.reject_reason?' — دلیل: '+log.reject_reason:'')+
+          '</div>':'')
+        +(isActive&&isMine?renderActionArea(order,stage):'')
+      +'</div>'
+    +'</div>';
   });
+
+  html+='</div></div>';
+  document.getElementById('wbs-body').innerHTML=html;
+  document.getElementById('wbs-body').scrollTop=0;
+
+  /* bind checklist clicks */
+  if(order.order_status&&stStat(order.order_status,order.order_status)==='active'){
+    var ck=CHECKS[order.order_status]||[];
+    var k='o'+id+'_'+order.order_status;
+    if(!checkState[k]) checkState[k]=ck.map(function(){return false;});
+    updateApproveBtn(id);
+  }
+}
+
+function renderActionArea(order,stage){
+  var ck=CHECKS[stage.key]||[];
+  var k='o'+order.id+'_'+stage.key;
+  if(!checkState[k]) checkState[k]=ck.map(function(){return false;});
+  var done=checkState[k].filter(Boolean).length;
+  var allDone=ck.length>0&&done===ck.length;
+
+  var html='<div class="stage-action">'
+    +'<div style="font-size:12px;color:#555;margin-bottom:8px">چک‌لیست تأیید ('+done+'/'+ck.length+' مورد)</div>';
+
+  ck.forEach(function(c,i){
+    var checked=checkState[k][i];
+    html+='<div class="chk-item'+(checked?' ok':'')+'" onclick="wbsChk('+order.id+',\''+stage.key+'\','+i+')">'
+      +'<div class="chk-box'+(checked?' t':'')+'">'+( checked?'✓':'' )+'</div>'
+      +'<div class="chk-lbl">'+c+'</div>'
+    +'</div>';
+  });
+
+  html+='<div class="action-btns">'
+    +'<button class="btn-approve" id="wbs-approve-'+order.id+'" '+(allDone?'':'disabled')+' onclick="wbsApprove('+order.id+')">✓ تأیید — ارسال به مرحله بعد</button>'
+    +'<button class="btn-reject" onclick="wbsToggleRej('+order.id+')">رد</button>'
+  +'</div>'
+  +'<div class="rej-box" id="wbs-rej-'+order.id+'">'
+    +'<div style="font-size:12px;color:#ef4444;font-weight:700;margin-bottom:6px">دلیل رد سفارش</div>'
+    +'<textarea class="rej-ta" id="wbs-rej-ta-'+order.id+'" rows="2" placeholder="توضیح دهید..."></textarea>'
+    +'<button class="rej-send" onclick="wbsReject('+order.id+')">ارسال رد</button>'
+  +'</div>'
+  +'</div>';
+  return html;
+}
+
+/* ====== CHECKLIST ACTIONS ====== */
+window.wbsChk=function(id,stageKey,i){
+  var k='o'+id+'_'+stageKey;
+  if(!checkState[k]) return;
+  checkState[k][i]=!checkState[k][i];
+  /* re-render just the action area */
+  renderDetail(id);
 };
 
-window.wToggleRej=function(id){
-  var b=document.getElementById('wrej-'+id);
+window.wbsApprove=function(id){
+  var order=allOrders.find(function(o){return o.id===id;});
+  if(!order) return;
+  var k='o'+id+'_'+order.order_status;
+  doAdvance(order,true,null,checkState[k]||[]);
+};
+
+window.wbsToggleRej=function(id){
+  var b=document.getElementById('wbs-rej-'+id);
   if(b) b.classList.toggle('on');
 };
 
-window.wReject=function(id){
-  var o=ordersCache.find(function(x){return x.id===id;});
-  if(!o) return;
-  var ta=document.getElementById('wrej-ta-'+id);
-  var reason=(ta?ta.value.trim():'');
+window.wbsReject=function(id){
+  var order=allOrders.find(function(o){return o.id===id;});
+  if(!order) return;
+  var ta=document.getElementById('wbs-rej-ta-'+id);
+  var reason=ta?ta.value.trim():'';
   if(!reason){alert('لطفاً دلیل رد را بنویسید');return;}
-  logAndAdvance(o,{},'rejected',reason,function(ok){
-    var card=document.getElementById('wcard-'+id);
-    if(ok&&card){
-      card.style.opacity='0.4';
-      card.innerHTML='<div style="text-align:center;padding:18px;color:#ef4444;font-size:13px">× سفارش رد شد</div>';
-      setTimeout(function(){card.remove();},2200);
-    }
-  });
+  doAdvance(order,false,reason,{});
 };
 
-// ===== NOTIFICATIONS TAB =====
-function renderNotifs(){
-  var body=document.getElementById('wbs-body');
-  body.innerHTML='<div class="wloading">در حال بارگذاری...</div>';
-  fetchNotifs(function(notifs){
-    if(!notifs.length){
-      body.innerHTML='<div class="wempty">&#128276; اعلانی وجود ندارد</div>';
-      return;
-    }
-    var html='';
-    notifs.forEach(function(n){
-      var t=n.sent_at?new Date(n.sent_at).toLocaleString('fa-IR'):'';
-      html+='<div class="wcard" style="border-right-color:#ef4444">'
-        +'<div style="font-size:13px;color:#e0e0e0;white-space:pre-line">'+n.message+'</div>'
-        +'<div style="font-size:11px;color:#444;margin-top:6px">'+t+'</div>'
-        +'</div>';
-    });
-    body.innerHTML=html;
-    markNotifsRead();
-    var badge=document.getElementById('wbs-badge');
-    if(badge) badge.style.display='none';
-    var tbadge=document.getElementById('wbs-ntab-badge');
-    if(tbadge) tbadge.style.display='none';
-  });
+function updateApproveBtn(id){
+  var order=allOrders.find(function(o){return o.id===id;});
+  if(!order) return;
+  var k='o'+id+'_'+order.order_status;
+  var ck=CHECKS[order.order_status]||[];
+  var allDone=ck.length>0&&checkState[k]&&checkState[k].filter(Boolean).length===ck.length;
+  var btn=document.getElementById('wbs-approve-'+id);
+  if(btn) btn.disabled=!allDone;
 }
 
-// ===== PERFORMANCE =====
-function renderPerf(){
-  var body=document.getElementById('wbs-body');
-  body.innerHTML='<div class="wloading">در حال بارگذاری...</div>';
-  fetchPerf(function(rows){
-    perfCache=rows;
-    if(!rows.length){
-      body.innerHTML='<div class="wempty">📊 داده‌ای برای نمایش وجود ندارد<br><small style="color:#333">پس از تأیید اولین سفارش، اطلاعات نمایش داده می‌شود</small></div>';
-      return;
-    }
-    var quarters=[...new Set(rows.map(function(r){return r.quarter;}))].sort().reverse();
-    var curQ=quarters[0];
-    body.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">'
-      +'<span style="font-size:14px;font-weight:700">عملکرد فصلی</span>'
-      +'<select class="wqsel" onchange="wRQ(this.value)">'
-      +quarters.map(function(q){return '<option value="'+q+'"'+(q===curQ?' selected':'')+'>'+fQ(q)+'</option>';}).join('')
-      +'</select></div>'
-      +'<div id="wperf-rows"></div>';
-    renderQRows(curQ);
-  });
-}
-
-window.wRQ=function(q){renderQRows(q);};
-
-function renderQRows(q){
-  var rows=perfCache.filter(function(r){return r.quarter===q;});
-  var byP={};
-  rows.forEach(function(r){
-    if(!byP[r.assigned_to]) byP[r.assigned_to]={total:0,approved:0,rejected:0,mins:[]};
-    byP[r.assigned_to].total+=parseInt(r.total)||0;
-    byP[r.assigned_to].approved+=parseInt(r.approved_count)||0;
-    byP[r.assigned_to].rejected+=parseInt(r.rejected_count)||0;
-    if(r.avg_minutes) byP[r.assigned_to].mins.push(parseFloat(r.avg_minutes));
-  });
-  var maxT=Math.max.apply(null,Object.values(byP).map(function(p){return p.total;})||[1]);
-  var html='';
-  Object.keys(byP).sort(function(a,b){return byP[b].total-byP[a].total;}).forEach(function(un){
-    var p=byP[un];
-    var avg=p.mins.length?Math.round(p.mins.reduce(function(a,b){return a+b;},0)/p.mins.length):null;
-    var pct=maxT>0?Math.round(p.total/maxT*100):0;
-    var sc=avg===null?'&mdash;':avg<120?'A':avg<240?'B':'C';
-    var scC=sc==='A'?'wsa':sc==='B'?'wsb':'wsc';
-    var uname=Object.keys(UN).filter(function(id){return UN[id]===un;}).map(function(id){return UNAME[id];}).join('')||un;
-    html+='<div class="wprow">'
-      +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">'
-        +'<div><div class="wpname">'+uname+'</div><div class="wprole">'+un+'</div></div>'
-        +'<span class="wscore '+scC+'">'+sc+'</span>'
-      +'</div>'
-      +'<div class="w-bar-wrap"><div class="w-bar-fill" style="width:'+pct+'%"></div></div>'
-      +'<div class="wpstats">'
-        +'<div class="wpstat"><div class="val">'+p.total+'</div><div class="lbl">سفارش</div></div>'
-        +'<div class="wpstat"><div class="val">'+p.approved+'</div><div class="lbl">تأیید</div></div>'
-        +'<div class="wpstat"><div class="val">'+p.rejected+'</div><div class="lbl">رد</div></div>'
-        +(avg!==null?'<div class="wpstat"><div class="val">'+fM(avg)+'</div><div class="lbl">میانگین زمان</div></div>':'')
-      +'</div>'
-    +'</div>';
-  });
-  var c=document.getElementById('wperf-rows');
-  if(c) c.innerHTML=html+'<div style="margin-top:10px;padding:10px;background:#151515;border-radius:8px;font-size:11px;color:#3a3a3a">★ A = کمتر از ۲ ساعت انجام مرحله &nbsp;|او&nbsp; B = ۲—۴ ساعت &nbsp;|و&nbsp; C = بیش از ۴ ساعت</div>';
-}
-
-function fQ(q){if(!q)return q;var d=new Date(q);var m=d.getMonth();var y=d.getFullYear();return 'فصل '+(Math.floor(m/3)+1)+' — '+y;}
-function fM(m){return m<60?m+'د':Math.round(m/60*10)/10+'س';}
+/* ====== INIT ====== */
+setTimeout(function(){
+  var un=myUN(); if(!un) return;
+  fetchAll(function(){updateBadge();});
+},1500);
+setInterval(function(){
+  var un=myUN(); if(!un) return;
+  fetchAll(function(){updateBadge(); if(!ov.classList.contains('on')) return; if(!detailId) renderList();});
+},60000);
 
 })();
 
