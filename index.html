@@ -270,61 +270,54 @@ var css=
 +'#wbs-body{flex:1;overflow-y:auto;padding:0;}'
 
 /* project cards */
-+'.pj-card{background:#111;border-bottom:1px solid #1a1a1a;padding:14px 16px;cursor:pointer;transition:background .12s;}'
++'.pj-card{background:#111;border-bottom:1px solid #1e1e1e;padding:20px 20px;cursor:pointer;transition:background .12s;}'
 +'.pj-card:hover{background:#161616;}'
-+'.pj-card-hd{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;}'
-+'.pj-id{font-size:13px;color:#888;}'
-+'.pj-customer{font-size:15px;font-weight:700;color:#e8e8e8;margin-bottom:2px;}'
-+'.pj-amount{font-size:12px;color:#555;}'
-+'.pj-badge{padding:3px 9px;border-radius:10px;font-size:11px;font-weight:700;white-space:nowrap;}'
++'.pj-card-hd{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;}'
++'.pj-id{font-size:12px;color:#555;margin-bottom:4px;}'
++'.pj-customer{font-size:17px;font-weight:700;color:#e8e8e8;margin-bottom:4px;}'
++'.pj-amount{font-size:13px;color:#666;}'
++'.pj-badge{padding:5px 12px;border-radius:20px;font-size:12px;font-weight:700;white-space:nowrap;}'
 +'.pj-active{background:#f0a50020;color:#f0a500;}'
 +'.pj-done{background:#22c55e18;color:#22c55e;}'
 +'.pj-rejected{background:#ef444418;color:#ef4444;}'
 +'.pj-pending{background:#3b82f618;color:#3b82f6;}'
-+'.pj-prog-wrap{display:flex;align-items:center;gap:10px;margin-bottom:8px;}'
-+'.pj-prog-bar{flex:1;height:4px;background:#1e1e1e;border-radius:2px;overflow:hidden;}'
-+'.pj-prog-fill{height:4px;border-radius:2px;background:#f0a500;transition:width .3s;}'
-+'.pj-prog-pct{font-size:11px;color:#444;width:30px;text-align:left;}'
-+'.pj-stage-row{display:flex;align-items:center;gap:6px;}'
-+'.pj-stage-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}'
-+'.dot-active{background:#f0a500;box-shadow:0 0 6px #f0a50080;}'
++'.pj-prog-wrap{display:flex;align-items:center;gap:12px;margin-bottom:14px;}'
++'.pj-prog-bar{flex:1;height:5px;background:#1e1e1e;border-radius:3px;overflow:hidden;}'
++'.pj-prog-fill{height:5px;border-radius:3px;background:#f0a500;transition:width .3s;}'
++'.pj-prog-pct{font-size:12px;color:#555;width:34px;text-align:left;}'
++'.pj-stage-row{display:flex;align-items:center;gap:7px;}'
++'.pj-stage-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;}'
++'.dot-active{background:#f0a500;box-shadow:0 0 8px #f0a50099;}'
 +'.dot-done{background:#22c55e;}'
 +'.dot-pending{background:#2a2a2a;}'
 +'.dot-rejected{background:#ef4444;}'
 +'.pj-stage-lbl{font-size:12px;color:#555;}'
-+'.pj-stage-who{font-size:11px;color:#333;margin-right:auto;}'
-+'.pj-myturn{background:#f0a50015;border-right:3px solid #f0a500;}'
++'.pj-stage-who{font-size:12px;color:#555;margin-right:auto;}'
++'.pj-myturn{background:#f0a50012;border-right:3px solid #f0a500;}'
 
 /* detail view */
 +'#wbs-detail{padding:0;}'
-+'.dj-hd{background:#111;padding:16px;border-bottom:1px solid #1e1e1e;}'
-+'.dj-title{font-size:17px;font-weight:700;color:#e8e8e8;margin-bottom:4px;}'
-+'.dj-meta{font-size:12px;color:#555;display:flex;gap:12px;flex-wrap:wrap;}'
-+'.dj-meta span{display:flex;align-items:center;gap:4px;}'
-+'.dj-prog{padding:12px 16px;background:#0e0e0e;border-bottom:1px solid #1a1a1a;}'
-+'.dj-prog-bar{height:6px;background:#1e1e1e;border-radius:3px;overflow:hidden;margin-bottom:6px;}'
++'.dj-hd{background:#111;padding:20px;border-bottom:1px solid #1e1e1e;}'
++'.dj-title{font-size:18px;font-weight:700;color:#e8e8e8;margin-bottom:6px;}'
++'.dj-meta{font-size:13px;color:#555;display:flex;gap:16px;flex-wrap:wrap;}'
++'.dj-prog{padding:16px 20px;background:#0e0e0e;border-bottom:1px solid #1a1a1a;}'
++'.dj-prog-bar{height:6px;background:#1e1e1e;border-radius:3px;overflow:hidden;margin-bottom:8px;}'
 +'.dj-prog-fill{height:6px;border-radius:3px;background:linear-gradient(to left,#22c55e,#f0a500);}'
-+'.dj-prog-lbl{font-size:11px;color:#444;display:flex;justify-content:space-between;}'
-+'.stage-list{padding:8px 0;}'
-+'.stage-item{display:flex;align-items:flex-start;gap:0;padding:0 16px;}'
-+'.stage-line-wrap{display:flex;flex-direction:column;align-items:center;width:28px;flex-shrink:0;margin-left:12px;}'
-+'.stage-icon{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0;margin:10px 0 0 0;}'
-+'.si-done{background:#22c55e20;color:#22c55e;border:2px solid #22c55e40;}'
-+'.si-active{background:#f0a50020;color:#f0a500;border:2px solid #f0a50060;box-shadow:0 0 10px #f0a50030;}'
-+'.si-pending{background:#1a1a1a;color:#333;border:2px solid #222;}'
-+'.si-cancelled{background:#ef444420;color:#ef4444;border:2px solid #ef444440;}'
-+'.stage-line{width:2px;flex:1;min-height:16px;background:#1e1e1e;}'
-+'.stage-line.done{background:#22c55e40;}'
-+'.stage-body{flex:1;padding:10px 0 10px 0;border-bottom:1px solid #141414;}'
-+'.stage-item:last-child .stage-body{border-bottom:none;}'
-+'.stage-name{font-size:13px;font-weight:700;color:#ccc;margin-bottom:3px;display:flex;align-items:center;justify-content:space-between;}'
-+'.stage-name-done{color:#22c55e;}'
-+'.stage-name-active{color:#f0a500;}'
-+'.stage-who-chip{font-size:11px;color:#555;background:#1a1a1a;padding:2px 8px;border-radius:10px;}'
-+'.stage-who-chip.mine{color:#f0a500;background:#f0a50015;}'
-+'.stage-log{font-size:11px;color:#444;margin-top:3px;}'
-+'.stage-log.rejected{color:#ef4444;}'
-+'.stage-action{margin-top:12px;background:#0e0e0e;border-radius:10px;padding:12px;border:1px solid #1e1e1e;}'
++'.dj-prog-lbl{font-size:12px;color:#444;display:flex;justify-content:space-between;}'
+/* simple table */
++'.wbs-table{width:100%;border-collapse:collapse;}'
++'.wbs-table th{padding:12px 20px;text-align:right;font-size:12px;color:#444;font-weight:600;border-bottom:1px solid #1a1a1a;background:#0d0d0d;}'
++'.wbs-table td{padding:14px 20px;text-align:right;font-size:13px;color:#bbb;border-bottom:1px solid #141414;vertical-align:middle;}'
++'.wbs-table tr:hover td{background:#131313;}'
++'.wbs-table tr.row-done td{color:#444;}'
++'.wbs-table tr.row-active td{color:#e8e8e8;background:#f0a50008;}'
++'.wbs-table tr.row-cancelled td{color:#333;}'
++'.st-badge{display:inline-block;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700;}'
++'.st-done-b{background:#22c55e18;color:#22c55e;}'
++'.st-active-b{background:#f0a50020;color:#f0a500;}'
++'.st-pending-b{background:#1e1e1e;color:#444;}'
++'.st-cancelled-b{background:#ef444418;color:#ef4444;}'
++'.stage-action{margin:16px 20px;background:#0e0e0e;border-radius:10px;padding:16px;border:1px solid #1e1e1e;}'
 +'.chk-item{display:flex;align-items:center;gap:10px;padding:8px;margin-bottom:4px;background:#111;border-radius:7px;cursor:pointer;border:1px solid #1a1a1a;}'
 +'.chk-item.ok{border-color:#22c55e25;}'
 +'.chk-box{width:20px;height:20px;border-radius:4px;border:2px solid #2a2a2a;display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0;}'
@@ -340,10 +333,10 @@ var css=
 +'.rej-send{background:#ef4444;color:#fff;border:none;padding:7px 14px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;margin-top:6px;}'
 +'.empty-state{text-align:center;padding:60px 20px;color:#2a2a2a;font-size:15px;line-height:2.5;}'
 +'.loading-state{text-align:center;padding:50px;color:#333;font-size:13px;}'
-+'.summary-bar{background:#0e0e0e;padding:10px 16px;display:flex;gap:16px;border-bottom:1px solid #1a1a1a;flex-shrink:0;}'
-+'.sum-item{text-align:center;}'
-+'.sum-val{font-size:18px;font-weight:700;color:#f0a500;}'
-+'.sum-lbl{font-size:10px;color:#333;}'
++'.summary-bar{background:#0e0e0e;padding:14px 20px;display:flex;gap:0;border-bottom:1px solid #1a1a1a;flex-shrink:0;}'
++'.sum-item{text-align:center;flex:1;}'
++'.sum-val{font-size:22px;font-weight:700;color:#f0a500;}'
++'.sum-lbl{font-size:11px;color:#444;margin-top:2px;}'
 ;
 
 var styleEl=document.createElement('style');
@@ -526,52 +519,52 @@ function renderDetail(id){
   var cname=order.customer_name||order.client_name||('#'+order.customer_id);
   var created=order.created_at?new Date(order.created_at).toLocaleDateString('fa-IR'):'';
 
+  var activeStage=STAGES.find(function(s){return s.key===order.order_status;});
+  var activeAction='';
+
   var html='<div id="wbs-detail">'
     +'<div class="dj-hd">'
-      +'<div class="dj-title">📦 سفارش #'+id+' — '+cname+'</div>'
+      +'<div class="dj-title">سفارش #'+id+' — '+cname+'</div>'
       +'<div class="dj-meta">'
-        +(order.amount?'<span>💰 '+Number(order.amount).toLocaleString('fa-IR')+' تومان</span>':'')
-        +(created?'<span>📅 '+created+'</span>':'')
-        +'<span>🔖 '+order.order_status+'</span>'
+        +(order.amount?'<span>'+Number(order.amount).toLocaleString('fa-IR')+' تومان</span>':'')
+        +(created?'<span>'+created+'</span>':'')
+        +(activeStage?'<span style="color:#f0a500">'+activeStage.label+'</span>':'')
       +'</div>'
     +'</div>'
     +'<div class="dj-prog">'
       +'<div class="dj-prog-bar"><div class="dj-prog-fill" style="width:'+pct+'%"></div></div>'
-      +'<div class="dj-prog-lbl"><span>'+pct+'% پیشرفت</span><span>'+(STAGES.findIndex(function(s){return s.key===order.order_status;})+1)+' از '+STAGES.length+' مرحله</span></div>'
+      +'<div class="dj-prog-lbl"><span>'+pct+'% پیشرفت</span><span>'+(sIdx(order.order_status)+1)+' از '+STAGES.length+' مرحله</span></div>'
     +'</div>'
-    +'<div class="stage-list">';
+    +'<table class="wbs-table">'
+    +'<thead><tr><th>مرحله</th><th>مسئول</th><th>وضعیت</th><th>تاریخ</th></tr></thead>'
+    +'<tbody>';
 
-  STAGES.forEach(function(stage,idx){
+  STAGES.forEach(function(stage){
     var st=stStat(order.order_status,stage.key);
-    var iconCls='si-'+st;
-    var icon=st==='done'?'✓':st==='active'?'●':st==='cancelled'?'✕':'○';
     var log=logs.find(function(l){return l.stage===stage.key;});
     var isMine=stage.who===un;
     var isActive=st==='active';
-    var isDone=st==='done';
-    var isLast=idx===STAGES.length-1;
+    var rowCls='row-'+st;
+    var badgeCls=st==='done'?'st-done-b':st==='active'?'st-active-b':st==='cancelled'?'st-cancelled-b':'st-pending-b';
+    var stLabel=st==='done'?'✓ انجام شد':st==='active'?'● در جریان':st==='cancelled'?'✕ لغو':'— منتظر';
+    var dateStr=log&&log.completed_at?new Date(log.completed_at).toLocaleDateString('fa-IR'):'—';
+    var rejectNote=log&&log.reject_reason?'<br><span style="color:#ef4444;font-size:11px">'+log.reject_reason+'</span>':'';
 
-    html+='<div class="stage-item">'
-      +'<div class="stage-line-wrap">'
-        +'<div class="stage-icon '+iconCls+'">'+icon+'</div>'
-        +(!isLast?'<div class="stage-line'+(isDone?' done':'')+'"></div>':'')
-      +'</div>'
-      +'<div class="stage-body">'
-        +'<div class="stage-name'+(isDone?' stage-name-done':isActive?' stage-name-active':'')+'">'
-          +stage.label
-          +'<span class="stage-who-chip'+(isMine?' mine':'')+'">'+uLabel(stage.who)+'</span>'
-        +'</div>'
-        +(log?'<div class="stage-log'+(log.action==='rejected'?' rejected':'')+'">'+
-          (log.action==='approved'?'✓ تأیید شد':'✕ رد شد')+
-          (log.completed_at?' — '+new Date(log.completed_at).toLocaleDateString('fa-IR'):'')+
-          (log.reject_reason?' — دلیل: '+log.reject_reason:'')+
-          '</div>':'')
-        +(isActive&&isMine?renderActionArea(order,stage):'')
-      +'</div>'
-    +'</div>';
+    html+='<tr class="'+rowCls+'">'
+      +'<td>'+stage.label+'</td>'
+      +'<td><span style="'+(isMine?'color:#f0a500':'')+'">'+uLabel(stage.who)+'</span></td>'
+      +'<td><span class="st-badge '+badgeCls+'">'+stLabel+'</span>'+rejectNote+'</td>'
+      +'<td style="color:#444">'+dateStr+'</td>'
+    +'</tr>';
+
+    if(isActive&&isMine){
+      activeAction=renderActionArea(order,stage);
+    }
   });
 
-  html+='</div></div>';
+  html+='</tbody></table>'
+    +(activeAction?activeAction:'')
+    +'</div>';
   document.getElementById('wbs-body').innerHTML=html;
   document.getElementById('wbs-body').scrollTop=0;
 
